@@ -272,6 +272,21 @@ bool Mesh::GetIsRotating() const
 	return m_IsRotating;
 }
 
+Vector3 Mesh::GetPosition() const
+{
+	return m_Position;
+}
+
+float Mesh::GetYaw() const
+{
+	return m_VehicleYaw;
+}
+
+size_t Mesh::GetNrOfVertices() const
+{
+	return m_VehicleVertices.size();
+}
+
 
 void Mesh::ParseFireObj(const std::string& filename)
 {

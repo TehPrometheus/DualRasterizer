@@ -31,6 +31,11 @@ namespace dae {
 		m_pMeshArr[0] = new Mesh(m_pDevice, "Resources/vehicle.obj", "Resources/vehicle_diffuse.png", "Resources/vehicle_normal.png", "Resources/vehicle_specular.png", "Resources/vehicle_gloss.png", {0,0,50.f});
 		m_pMeshArr[1] = new Mesh(m_pDevice, "Resources/fireFX.obj", "Resources/fireFX_diffuse.png", { 0,0,50.f });
 
+		//Create Buffers
+		m_pFrontBuffer = SDL_GetWindowSurface(pWindow);
+		m_pBackBuffer = SDL_CreateRGBSurface(0, m_Width, m_Height, 32, 0, 0, 0, 0);
+		m_pBackBufferPixels = (uint32_t*)m_pBackBuffer->pixels;
+		m_pDepthBufferPixels = new float[m_Width * m_Height];
 	}
 
 	Renderer::~Renderer()
@@ -57,40 +62,71 @@ namespace dae {
 			mesh = nullptr;
 		}
 		delete m_pCamera;
+		delete m_pDepthBufferPixels;
 	}
 
 	void Renderer::Update(const Timer* pTimer)
 	{
 		m_pCamera->Update(pTimer);
+
 		for (Mesh*& mesh : m_pMeshArr)
 		{
 			mesh->Update(pTimer);
 		}
-
 	}
 
 
 	void Renderer::Render() const
 	{
+		if (m_IsUsingDirectX)
+		{
+			HardwareRender();
+		}
+		else
+		{
+			SoftwareRender();
+		}
+	}
+
+	void Renderer::HardwareRender() const
+	{
 		if (!m_IsInitialized)
 			return;
-
 
 		//1. Clear RTV & DSV
 		ColorRGB clearColor = ColorRGB{ 0,0,0.3f };
 		m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, &clearColor.r);
 		m_pDeviceContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 
-		
+
 		//2. Set Pipeline + Invoke drawcalls (=Render)
 		for (Mesh* mesh : m_pMeshArr)
 		{
 			mesh->Render(m_pDeviceContext, m_pCamera);
 		}
-		
 
-		//4 Present Backbuffer (Swap)
-		m_pSwapChain->Present(0,0);
+		//3 Present Backbuffer (Swap)
+		m_pSwapChain->Present(0, 0);
+	}
+
+	void Renderer::SoftwareRender() const
+	{
+		//@START
+		std::fill_n(m_pDepthBufferPixels, m_Width * m_Height, FLT_MAX);
+		SDL_FillRect(m_pBackBuffer, NULL, SDL_MapRGB(m_pBackBuffer->format, 100, 100, 100));
+
+		//Lock BackBuffer
+		SDL_LockSurface(m_pBackBuffer);
+
+		//1. Set Matrices
+		dae::Matrix worldMatrix = Matrix::CreateTranslation(m_pMeshArr[0]->GetPosition()) * Matrix::CreateRotationY(GetVehicleMeshPtr()->GetYaw());
+		dae::Matrix viewMatrix{ m_pCamera->GetViewMatrix().Inverse() };
+		dae::Matrix inverseViewMatrix{ m_pCamera->GetViewMatrix() };
+		dae::Matrix projectionMatrix{ m_pCamera->GetProjectionMatrix() };
+		dae::Matrix worldViewProjectionMatrix{ worldMatrix * viewMatrix * projectionMatrix };
+
+
+
 	}
 
 	Mesh* Renderer::GetVehicleMeshPtr() const
@@ -236,120 +272,14 @@ namespace dae {
 		m_pDeviceContext->RSSetViewports(1, &viewport);
 
 		return S_OK;
+	}
 
-		//INFO
-		/*
-			USE F1!!!MSDN IS YOUR FRIEND
-			Pattern that you'll come across often is that you need to create a description
-			of something before creating an object using said description
-			All resources/objects are created with a device, which then needs a description = the pattern
-
-			We have to instruct DirectX to release memory! Not release it ourselves
-			D3D11_TEXTURE2D_DESC just refers to a 2D array of colorRGB values	
-			ID2D11Resource refers to the bits & bytes reserved for said resource
-			DirectX knows how to interpret that resource (those bytes) using Resource Views
-			resources can only be accessed through their respective VIEWS
-
-			viewport specifies what part of the screen you want to render to. Think Splitscreen games
-			RSSetViewport : RS stands for Rasterizer Space
-			
-			Slide 20 shows an example of DirectX telling us what hasn't been released yet!
-			clear state
-			flush
-			release
-			are the three functions you need to give to the deviceContext pointer.
-			you need to release resources in reverse order!
-
-			For 1 vertex, where does my POSITION start? == AlignedByteOffset.
-			Line above is strange, it is to explain what AlignedByteOffsetis is on slide 27
-
-			Slide32: stages that the hardware will do for you
-
-			Your mesh needs to undergo some steps in the pipeline before you give it to the render function
-
-			slide38: this is hlsl code, not C++ that's why it looks strange
-
-			You need to make an effect class. I saw that Thomas also has an EffectUtils.h file so might need that aswell
-			You need to make a mesh class. The constructor needs a ID3D11Device* and Effect*
-			he has a function 'createresources' which at least makes a few buffers like a vertex buffer and index buffer
-			slide42: top 2 snippets are for Effect. Bottom 2 snippets are for createresources in the mesh class
-			Inside the mesh class you CAN have a render function (with the pDeviceContext* as parameter)  which you call in the render here. 
-				1 Set primitive topology
-				2 Set Input Layout
-				3 Set Vertexbuffer
-				4 Set IndexBuffer
-				5 Draw
-			You need pDeviceContext for all those. This is shown in slide43. Those 5 steps represent step 2 in the Render function above. 
-			You could also just have those 5 steps in that render function. As long as you loop over your meshes
-			Drawindexed means we're going to draw using index buffer
-
-			Regarding the hlsl file. Open it in notepad or something and code it like that. Then that file's path
-			is received as an input by the LoadEffect function in slide 40. (called assetFile)
-		*/ 
+	void Renderer::VertexTransformationFunction(const Matrix& worldViewProjMatrix, std::vector<Vertex_Vehicle>& verticesOut)
+	{
+		for (size_t idx = 0; idx < m_pMeshArr[0]->GetNrOfVertices(); ++idx)
+		{
+			Vertex_Vehicle vertexOut{};
+			//TODO: start here. We need the vertex data to create a transformed copy. But they're private...
+		}
 	}
 }
-
-/*
-	notes regarding Week 11
-	put the float 4x4 global at the top of your file (gworldviewproj)
-
-	the ID3DX11Effect* m_pEffect{} pointer in the effect class can be used to query data
-
-	slide 3: I believe the righthandside code needs to be inside the effect class we created
-	The left hand side is in the .hlsl file
-
-	in his effect class he has the m_pmatworldviewprojvariable of type ID3DX11EffectMatrixVariable*
-	
-	you need to call setmatrix on this m_pmatworldviewprojvariable in slide 4. You'll have to cast the variable it needs
-
-	you need to use the hlsl function mul which is used to multiply a float with a 4x4 matrix
-	inside the VS_OUTPUT function
-	instead of output.Position = ...
-	it is output.position = mul(float4(input.position,1.f),gworldviewproj);
-
-	for your quad. Create a new vertex type which has a position and a uv. You need 4 indices.
-	e.g. the uv values need to be from topleft starting: (0,0)->(1,0)->(1,1)->(0,1)
-
-	so you need a new struct VertexPosTex{} instead of posCol. Contains position and Vector2 uv.
-	defined in the Mesh.h file above the class. This also means you need a separate hlsl file where
-	the type of the uv is TEXTCOORD
-	float3 Position:POSITION;
-	float2 UV: TEXCOORD;
-
-	for output use float4 Position: SV_POSITION;
-
-	slide 5: implement
-	virtual void BuildInputLayout() = 0;
-	vitrtual void LoadEffectVariable() = 0;
-	because you have different inputs (color VS uv)
-
-	so he creates two child classes from the effect class, one called Effect_PosCol. One called Effect_PosTex
-	because the input is different. So change the effect class to a base class.
-	the 3 existing member variables of effect will need to be set to protected so they can be inherited
-	
-	the mesh constructor expects a vector of poscols. He templated it to also allow for a vector of postex objects
-	however I think you can also just add a second constructor for the mesh class
-
-	resources can only be interpreted through a resourceview
-
-	the texture class needs to be able to return the ID3D11ShaderResourceView. We need it to bind the texture to the shader
-
-	m_pSRV, seen in slide 6, is an object is your ID3D11ShaderResourceView, the most important part of your pipeline. It's a member variable of your
-	texture class.
-
-	every time he says 'shader' he's referring to the .hlsl file
-
-	getSRV() = get shader resource view
-
-	sample function of directX. The sampler stateS tells the sample function what we need to do if the uv 
-	coordinate goes outside of bounds. Second argument is the uv coordinate. Will return a float4 object (RGBA)
-
-	he has an m_pDevice variable stored in the effect class.
-	You cant call virtual functions in the constructor, that's why he has an m_pDevice pointer stored.
-	so he has an initialize function which is implemented in the child classes
-	it loadEfect
-	loadeffectvariale 
-	BuildInputLayout
-
-
-*/

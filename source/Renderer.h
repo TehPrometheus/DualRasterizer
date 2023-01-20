@@ -4,6 +4,7 @@
 #include "Mesh.h"
 #include "Camera.h"
 #include <array>
+
 struct SDL_Window;
 struct SDL_Surface;
 
@@ -30,6 +31,8 @@ namespace dae
 		//------------------------------------------------
 		void Update(const Timer* pTimer);
 		void Render() const;
+		void HardwareRender() const;
+		void SoftwareRender() const;
 		Mesh* GetVehicleMeshPtr() const;
 		Mesh* GetFireMeshPtr() const;
 	private:
@@ -48,7 +51,7 @@ namespace dae
 		float m_AspectRatio{};
 		
 		bool m_IsInitialized{ false };
-
+		bool m_IsUsingDirectX{ true };
 
 		std::array<Mesh*, m_NROFMESHES> m_pMeshArr{};
 
@@ -62,9 +65,17 @@ namespace dae
 		ID3D11RenderTargetView* m_pRenderTargetView{ nullptr };
 		ID3D11Resource* m_pRenderTargetBuffer{ nullptr };
 
+
+		SDL_Surface* m_pFrontBuffer{ nullptr };
+		SDL_Surface* m_pBackBuffer{ nullptr };
+		uint32_t* m_pBackBufferPixels{};
+
+		float* m_pDepthBufferPixels{};
+
 		//------------------------------------------------
 		// Private member functions						
 		//------------------------------------------------
 		HRESULT InitializeDirectX();
+		void VertexTransformationFunction(const Matrix& worldViewProjMatrix, std::vector<Vertex_Vehicle>& verticesOut);
 	};
 }

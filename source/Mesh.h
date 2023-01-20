@@ -42,7 +42,9 @@ public:
 	Effect* GetEffectPtr() const;
 	void ToggleRotation();
 	bool GetIsRotating() const;
-
+	Vector3 GetPosition() const;
+	float GetYaw() const;
+	size_t GetNrOfVertices() const;
 private:
 
 	//------------------------------------------------
