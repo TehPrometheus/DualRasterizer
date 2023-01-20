@@ -52,6 +52,8 @@ public:
 	void ToggleVisibility();
 	void ToggleShadingMode();
 	void ToggleNormalMap();
+	void ToggleDepthBufferVisualization();
+	void ToggleBoundingBoxVisualization();
 	bool GetIsRotating() const;
 	float GetYaw() const;
 	ID3D11InputLayout* GetInputLayoutPtr() const;
@@ -59,6 +61,9 @@ public:
 	Vector3 GetPosition() const;
 	ShadingMode GetShadingMode() const;
 	bool GetIsNormalMapEnabled() const;
+	bool GetVisibility() const;
+	bool GetDepthBufferBool() const;
+	bool GetBoundingBoxBool() const;
 private:
 
 	//------------------------------------------------
@@ -73,7 +78,8 @@ private:
 	bool m_IsRotating{ true };
 	bool m_IsNormalMapEnabled{ true };
 	bool m_IsVisible{ true };
-
+	bool m_IsDepthBufferVisualizationEnabled{ false };
+	bool m_IsBoundingBoxVisualizationEnabled{ false };
 	Vector3 m_Position{};
 	ShadingMode m_ShadingMode{ ShadingMode::Combined };
 
@@ -104,6 +110,7 @@ private:
 	bool IsPointInTriangle(const Vector3& weights) const;
 	float CalculateWeights(const Vector2& vertex1, const Vector2& vertex2, const Vector2& pixel, float area) const;
 	ColorRGB PixelShading(const Vertex_Out& v) const;
+	inline float RemapValue(float value, float floor, float ceiling) const;
 
 };
 

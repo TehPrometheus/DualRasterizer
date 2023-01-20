@@ -164,6 +164,11 @@ namespace dae {
 		return fireMesh;
 	}
 
+	bool Renderer::GetIsUniformColorEnabled() const
+	{
+		return m_IsUniformColorEnabled;
+	}
+
 	bool Renderer::GetIsUsingDirectX() const
 	{
 		return m_IsUsingDirectX;
