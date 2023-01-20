@@ -33,8 +33,12 @@ namespace dae
 		void Render() const;
 		void HardwareRender() const;
 		void SoftwareRender() const;
+		void ToggleRenderer();
+		void ToggleBackgroundColor();
 		Mesh* GetVehicleMeshPtr() const;
 		Mesh* GetFireMeshPtr() const;
+
+		bool GetIsUsingDirectX() const;
 	private:
 
 		//------------------------------------------------
@@ -43,15 +47,17 @@ namespace dae
 
 		SDL_Window* m_pWindow{};
 		Camera* m_pCamera{};
-		
+		ColorRGB m_BackgroundColor{ colors::CornflowerBlue };
+
 		int m_Width{};
 		int m_Height{};
-		static const int m_NROFMESHES{ 2 };
+		const static int m_NROFMESHES{ 2 };
 
 		float m_AspectRatio{};
 		
 		bool m_IsInitialized{ false };
 		bool m_IsUsingDirectX{ true };
+		bool m_IsUniformColorEnabled{ false };
 
 		std::array<Mesh*, m_NROFMESHES> m_pMeshArr{};
 
@@ -76,6 +82,5 @@ namespace dae
 		// Private member functions						
 		//------------------------------------------------
 		HRESULT InitializeDirectX();
-		void VertexTransformationFunction(const Matrix& worldViewProjMatrix, std::vector<Vertex_Vehicle>& verticesOut);
 	};
 }

@@ -1,6 +1,11 @@
 #include "pch.h"
 #include "Renderer.h"
 
+#define vehicleMesh m_pMeshArr[0];
+#define fireMesh m_pMeshArr[1];
+
+
+
 namespace dae {
 
 	Renderer::Renderer(SDL_Window* pWindow) :
@@ -28,10 +33,10 @@ namespace dae {
 		}
 
 		//Initialize Meshes
-		m_pMeshArr[0] = new Mesh(m_pDevice, "Resources/vehicle.obj", "Resources/vehicle_diffuse.png", "Resources/vehicle_normal.png", "Resources/vehicle_specular.png", "Resources/vehicle_gloss.png", {0,0,50.f});
+		m_pMeshArr[0] = new Mesh(m_pDevice, "Resources/vehicle.obj", "Resources/vehicle_diffuse.png", "Resources/vehicle_normal.png", "Resources/vehicle_specular.png", "Resources/vehicle_gloss.png", {0,0,50.f}, m_Width, m_Height);
 		m_pMeshArr[1] = new Mesh(m_pDevice, "Resources/fireFX.obj", "Resources/fireFX_diffuse.png", { 0,0,50.f });
 
-		//Create Buffers
+		//Create Buffers for software rasterizer
 		m_pFrontBuffer = SDL_GetWindowSurface(pWindow);
 		m_pBackBuffer = SDL_CreateRGBSurface(0, m_Width, m_Height, 32, 0, 0, 0, 0);
 		m_pBackBufferPixels = (uint32_t*)m_pBackBuffer->pixels;
@@ -86,6 +91,7 @@ namespace dae {
 		{
 			SoftwareRender();
 		}
+		
 	}
 
 	void Renderer::HardwareRender() const
@@ -94,7 +100,7 @@ namespace dae {
 			return;
 
 		//1. Clear RTV & DSV
-		ColorRGB clearColor = ColorRGB{ 0,0,0.3f };
+		ColorRGB clearColor = ColorRGB{ m_BackgroundColor };
 		m_pDeviceContext->ClearRenderTargetView(m_pRenderTargetView, &clearColor.r);
 		m_pDeviceContext->ClearDepthStencilView(m_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 
@@ -102,7 +108,7 @@ namespace dae {
 		//2. Set Pipeline + Invoke drawcalls (=Render)
 		for (Mesh* mesh : m_pMeshArr)
 		{
-			mesh->Render(m_pDeviceContext, m_pCamera);
+			mesh->HardwareRender(m_pDeviceContext, m_pCamera);
 		}
 
 		//3 Present Backbuffer (Swap)
@@ -113,30 +119,54 @@ namespace dae {
 	{
 		//@START
 		std::fill_n(m_pDepthBufferPixels, m_Width * m_Height, FLT_MAX);
-		SDL_FillRect(m_pBackBuffer, NULL, SDL_MapRGB(m_pBackBuffer->format, 100, 100, 100));
+		SDL_FillRect(m_pBackBuffer, NULL, SDL_MapRGB(m_pBackBuffer->format,static_cast<Uint8>(m_BackgroundColor.r * 255), static_cast<Uint8>(m_BackgroundColor.g * 255), static_cast<Uint8>(m_BackgroundColor.b * 255)));
 
 		//Lock BackBuffer
 		SDL_LockSurface(m_pBackBuffer);
 
-		//1. Set Matrices
-		dae::Matrix worldMatrix = Matrix::CreateTranslation(m_pMeshArr[0]->GetPosition()) * Matrix::CreateRotationY(GetVehicleMeshPtr()->GetYaw());
-		dae::Matrix viewMatrix{ m_pCamera->GetViewMatrix().Inverse() };
-		dae::Matrix inverseViewMatrix{ m_pCamera->GetViewMatrix() };
-		dae::Matrix projectionMatrix{ m_pCamera->GetProjectionMatrix() };
-		dae::Matrix worldViewProjectionMatrix{ worldMatrix * viewMatrix * projectionMatrix };
+		//Perform render
+		m_pMeshArr[0]->SoftwareRender(m_pCamera, m_pBackBuffer, m_pBackBufferPixels, m_pDepthBufferPixels);
+
+		//@END
+		//Update SDL Surface
+		SDL_UnlockSurface(m_pBackBuffer);
+		SDL_BlitSurface(m_pBackBuffer, 0, m_pFrontBuffer, 0);
+		SDL_UpdateWindowSurface(m_pWindow);
 
 
+	}
 
+	void Renderer::ToggleRenderer()
+	{
+		m_IsUsingDirectX = !m_IsUsingDirectX;
+
+		if (m_IsUniformColorEnabled) m_BackgroundColor = colors::DarkGrey;
+		else if (m_IsUsingDirectX) m_BackgroundColor = colors::CornflowerBlue;
+		else m_BackgroundColor = colors::LightGrey;
+	}
+
+	void Renderer::ToggleBackgroundColor()
+	{
+		m_IsUniformColorEnabled = !m_IsUniformColorEnabled;
+
+		if (m_IsUniformColorEnabled) m_BackgroundColor = colors::DarkGrey;
+		else if (m_IsUsingDirectX) m_BackgroundColor = colors::CornflowerBlue;
+		else m_BackgroundColor = colors::LightGrey;
 	}
 
 	Mesh* Renderer::GetVehicleMeshPtr() const
 	{
-		return m_pMeshArr[0];
+		return vehicleMesh;
 	}
 
 	Mesh* Renderer::GetFireMeshPtr() const
 	{
-		return m_pMeshArr[1];
+		return fireMesh;
+	}
+
+	bool Renderer::GetIsUsingDirectX() const
+	{
+		return m_IsUsingDirectX;
 	}
 
 
@@ -274,12 +304,4 @@ namespace dae {
 		return S_OK;
 	}
 
-	void Renderer::VertexTransformationFunction(const Matrix& worldViewProjMatrix, std::vector<Vertex_Vehicle>& verticesOut)
-	{
-		for (size_t idx = 0; idx < m_pMeshArr[0]->GetNrOfVertices(); ++idx)
-		{
-			Vertex_Vehicle vertexOut{};
-			//TODO: start here. We need the vertex data to create a transformed copy. But they're private...
-		}
-	}
 }

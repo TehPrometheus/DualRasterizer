@@ -23,12 +23,14 @@ namespace dae
 		Vertex_Out(	Vector4 posInput = Vector4{ 0,0,0,0 }, 
 					Vector2 uvInput = Vector2{ 0,0 }, 
 					ColorRGB colorInput = ColorRGB{ 1,1,1 },
-					Vector3 normalInput = Vector3{1,0,0})
+					Vector3 normalInput = Vector3{1,0,0},
+					Vector3 tangentInput = Vector3{ 1,0,0 })
 		{
 			position = posInput;
 			color = colorInput;
 			uv = uvInput;
 			normal = normalInput;
+			tangent = tangentInput;
 		}
 		Vector4 position{};
 		ColorRGB color{ colors::White };

@@ -24,9 +24,9 @@ public:
 	void Update(const Timer* pTimer);
 	void CalculateViewMatrix();
 	void CalculateProjectionMatrix();
-	Matrix GetViewMatrix();
-	Matrix GetProjectionMatrix();
-
+	Matrix GetViewMatrix() const;
+	Matrix GetProjectionMatrix() const;
+	Vector3 GetOrigin() const;
 private:
 
 	//------------------------------------------------
@@ -36,6 +36,7 @@ private:
 	float m_TotalPitch{};
 	float m_TotalYaw{};
 	float m_FOV{};
+	float m_SpeedMultiplier{ 1.f };
 
 	const float m_FovAngle{ };
 	const float m_AspectRatio{};
