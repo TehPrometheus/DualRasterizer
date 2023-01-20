@@ -22,7 +22,6 @@ void Camera::Update(const Timer* pTimer)
 {
 	const float deltaTime = pTimer->GetElapsed();
 
-	//Camera Update Logic
 	//Keyboard Input
 	const uint8_t* pKeyboardState = SDL_GetKeyboardState(nullptr);
 	m_SpeedMultiplier = 1.f;
@@ -106,7 +105,8 @@ void Camera::Update(const Timer* pTimer)
 			m_TotalPitch += m_RotationSpeed * deltaTime;
 		}
 	}
-	//Update Matrix
+
+	//Update Matrices
 	CalculateViewMatrix();
 	CalculateProjectionMatrix();
 }
