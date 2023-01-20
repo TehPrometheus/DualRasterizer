@@ -39,24 +39,12 @@ int main(int argc, char* args[])
 	//Initialize "framework"
 	const auto pTimer = new Timer();
 	const auto pRenderer = new Renderer(pWindow);
-	//enum class sampleState
-	//{
-	//	point,
-	//	linear,
-	//	anisotropic
-	//};
-
-	//enum class cullMode
-	//{
-	//	backCulling,
-	//	frontCulling,
-	//	noCulling
-	//};
 
 	//Start loop
 	pTimer->Start();
 	float printTimer = 0.f;
 	bool isLooping = true;
+	bool isFPSEnabled = true;
 	while (isLooping)
 	{
 		//--------- Get input events ---------
@@ -69,6 +57,10 @@ int main(int argc, char* args[])
 				isLooping = false;
 				break;
 			case SDL_KEYUP:
+				if (e.key.keysym.scancode == SDL_SCANCODE_F1)
+				{
+					pRenderer->ToggleRenderer();
+				}
 				if (e.key.keysym.scancode == SDL_SCANCODE_F2)
 				{
 					pRenderer->GetVehicleMeshPtr()->ToggleRotation();
@@ -83,7 +75,11 @@ int main(int argc, char* args[])
 						std::cout << "Rotation Disabled\n";
 					}
 				}
-				if (e.key.keysym.scancode == SDL_SCANCODE_F4)
+				if (e.key.keysym.scancode == SDL_SCANCODE_F3 && pRenderer->GetIsUsingDirectX())
+				{
+					pRenderer->GetFireMeshPtr()->ToggleVisibility();
+				}
+				if (e.key.keysym.scancode == SDL_SCANCODE_F4 && pRenderer->GetIsUsingDirectX())
 				{
 					pRenderer->GetVehicleMeshPtr()->GetEffectPtr()->ToggleSampleState();
 					pRenderer->GetFireMeshPtr()->GetEffectPtr()->ToggleSampleState();
@@ -102,6 +98,51 @@ int main(int argc, char* args[])
 					default:
 						break;
 					}
+				}
+				if (e.key.keysym.scancode == SDL_SCANCODE_F5 && !pRenderer->GetIsUsingDirectX())
+				{
+					pRenderer->GetVehicleMeshPtr()->ToggleShadingMode();
+
+					std::cout << "Shading mode = ";
+
+					switch (pRenderer->GetVehicleMeshPtr()->GetShadingMode())
+					{
+						case ShadingMode::ObservedArea:
+							std::cout << "Observed Area\n";
+							break;
+						case ShadingMode::Diffuse:
+							std::cout << "Diffuse\n";
+							break;
+						case ShadingMode::Specular:
+							std::cout << "Specular\n";
+							break;
+						case ShadingMode::Combined:
+							std::cout << "Combined\n";
+							break;
+						default:
+							break;
+					}
+				}
+				if (e.key.keysym.scancode == SDL_SCANCODE_F6 && !pRenderer->GetIsUsingDirectX())
+				{
+					pRenderer->GetVehicleMeshPtr()->ToggleNormalMap();
+					if (pRenderer->GetVehicleMeshPtr()->GetIsNormalMapEnabled())
+					{
+						std::cout << "Normal Map ON\n";
+					}
+					else
+					{
+						std::cout << "Normal Map OFF\n";
+					}
+
+				}
+				if (e.key.keysym.scancode == SDL_SCANCODE_F7 && !pRenderer->GetIsUsingDirectX())
+				{
+
+				}
+				if (e.key.keysym.scancode == SDL_SCANCODE_F8 && !pRenderer->GetIsUsingDirectX())
+				{
+
 				}
 				if (e.key.keysym.scancode == SDL_SCANCODE_F9)
 				{
@@ -122,6 +163,23 @@ int main(int argc, char* args[])
 						break;
 					}
 				}
+				if (e.key.keysym.scancode == SDL_SCANCODE_F10)
+				{
+					pRenderer->ToggleBackgroundColor();
+				}
+				if (e.key.keysym.scancode == SDL_SCANCODE_F11)
+				{
+					isFPSEnabled = !isFPSEnabled;
+					if (isFPSEnabled)
+					{
+						std::cout << "Print FPS ON\n";
+					}
+					else
+					{
+						std::cout << "Print FPS OFF\n";
+					}
+
+				}
 				break;
 			default: ;
 			}
@@ -136,7 +194,7 @@ int main(int argc, char* args[])
 		//--------- Timer ---------
 		pTimer->Update();
 		printTimer += pTimer->GetElapsed();
-		if (printTimer >= 1.f)
+		if (printTimer >= 1.f && isFPSEnabled)
 		{
 			printTimer = 0.f;
 			std::cout << "dFPS: " << pTimer->GetdFPS() << std::endl;

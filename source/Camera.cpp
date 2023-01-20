@@ -22,24 +22,28 @@ void Camera::Update(const Timer* pTimer)
 {
 	const float deltaTime = pTimer->GetElapsed();
 
-	//Camera Update Logic
 	//Keyboard Input
 	const uint8_t* pKeyboardState = SDL_GetKeyboardState(nullptr);
+	m_SpeedMultiplier = 1.f;
+	if (pKeyboardState[SDL_SCANCODE_LSHIFT])
+	{
+		m_SpeedMultiplier = 3.f;
+	}
 	if (pKeyboardState[SDL_SCANCODE_W])
 	{
-		m_Origin += m_MovementSpeed * deltaTime * m_Forward;
+		m_Origin += m_SpeedMultiplier * m_MovementSpeed * deltaTime * m_Forward;
 	}
 	if (pKeyboardState[SDL_SCANCODE_A])
 	{
-		m_Origin += m_MovementSpeed * deltaTime * -m_Right;
+		m_Origin += m_SpeedMultiplier * m_MovementSpeed * deltaTime * -m_Right;
 	}
 	if (pKeyboardState[SDL_SCANCODE_S])
 	{
-		m_Origin += m_MovementSpeed * deltaTime * -m_Forward;
+		m_Origin += m_SpeedMultiplier * m_MovementSpeed * deltaTime * -m_Forward;
 	}
 	if (pKeyboardState[SDL_SCANCODE_D])
 	{
-		m_Origin += m_MovementSpeed * deltaTime * m_Right;
+		m_Origin += m_SpeedMultiplier * m_MovementSpeed * deltaTime * m_Right;
 	}
 
 	//Mouse Input
@@ -101,7 +105,8 @@ void Camera::Update(const Timer* pTimer)
 			m_TotalPitch += m_RotationSpeed * deltaTime;
 		}
 	}
-	//Update Matrix
+
+	//Update Matrices
 	CalculateViewMatrix();
 	CalculateProjectionMatrix();
 }
@@ -133,13 +138,18 @@ void Camera::CalculateProjectionMatrix()
 	m_ProjectionMatrix = Matrix::CreatePerspectiveFovLH(m_FOV, m_AspectRatio, m_NearPlane, m_FarPlane);
 }
 
-Matrix Camera::GetViewMatrix()
+Matrix Camera::GetViewMatrix() const
 {
 	return m_ViewMatrix;
 }
 
-Matrix Camera::GetProjectionMatrix()
+Matrix Camera::GetProjectionMatrix() const
 {
 	return m_ProjectionMatrix;
+}
+
+Vector3 Camera::GetOrigin() const
+{
+	return m_Origin;
 }
 

@@ -78,12 +78,17 @@ Mesh::Mesh(ID3D11Device* pDeviceInput, const std::string& objPath, const std::st
 	m_pEffect->SetDiffuseMap(m_pDiffuseMap);
 }
 
-Mesh::Mesh(ID3D11Device* pDeviceInput, const std::string& objPath, const std::string& diffuseMapPath, const std::string& normalMapPath, const std::string& specularMapPath, const std::string& glossinessMapPath, const Vector3& position)
+Mesh::Mesh(ID3D11Device* pDeviceInput, const std::string& objPath, const std::string& diffuseMapPath, const std::string& normalMapPath, const std::string& specularMapPath, const std::string& glossinessMapPath, const Vector3& position, int windowWidth, int windowHeight)
+	: m_WindowWidth{windowWidth}
+	, m_WindowHeight{windowHeight}
 {
 	m_pEffect = new Effect_Vehicle(pDeviceInput,L"Resources/Vehicle_Shader.fx");
 
 	//Parse OBJ
 	ParseObj(objPath,m_VehicleVertices,m_Indices);
+
+	//Set software vertices
+	m_VehicleVerticesOut.resize(m_VehicleVertices.size());
 
 	//Create Vertex Layout
 	static constexpr uint32_t numElements{ 4 };
@@ -197,8 +202,10 @@ void Mesh::Update(const Timer* pTimer)
 	m_VehicleYaw = PI_DIV_4 * m_AccuSec;
 }
 
-void Mesh::Render(ID3D11DeviceContext* pDeviceContext, Camera* pCamera) const
+void Mesh::HardwareRender(ID3D11DeviceContext* pDeviceContext, Camera* pCamera) const
 {
+	if (!m_IsVisible) return;
+
 	//1. Set Matrices
 	dae::Matrix worldMatrix = Matrix::CreateTranslation(m_Position) * Matrix::CreateRotationY(m_VehicleYaw);
 	dae::Matrix viewMatrix{ pCamera->GetViewMatrix().Inverse() };
@@ -252,7 +259,259 @@ void Mesh::Render(ID3D11DeviceContext* pDeviceContext, Camera* pCamera) const
 
 }
 
-ID3D11InputLayout* Mesh::GetInputLayoutPtr()
+void Mesh::SoftwareRender(Camera* pCamera, SDL_Surface* pBackBuffer, uint32_t* pBackBufferPixels, float* pDepthBufferPixels) 
+{
+	VertexTransformationFunction(pCamera);
+
+	for (uint32_t idx = 0; idx < m_NumIndices; idx += 3)
+	{
+		std::vector<Vertex_Out> triangle{};
+
+		triangle.push_back(m_VehicleVerticesOut[ m_Indices[idx + 0] ]);
+		triangle.push_back(m_VehicleVerticesOut[ m_Indices[idx + 1] ]);
+		triangle.push_back(m_VehicleVerticesOut[ m_Indices[idx + 2] ]);
+
+		// Optimisation Stage
+		if (IsFrustumCullingRequired(triangle))
+		{
+			continue;
+		}
+
+		// NDC -> Screen Space Coordinates
+		for (Vertex_Out& vertex : triangle)
+		{
+			vertex.position.x = ((1 + vertex.position.x) / 2) * m_WindowWidth;
+			vertex.position.y = ((1 - vertex.position.y) / 2) * m_WindowHeight;
+		}
+
+		// Rasterization Stage
+		RenderTriangle(triangle, pBackBuffer, pBackBufferPixels, pDepthBufferPixels);
+	}
+
+}
+
+void Mesh::VertexTransformationFunction(Camera* pCamera)
+{
+	Matrix worldMatrix = Matrix::CreateTranslation(m_Position) * Matrix::CreateRotationY(m_VehicleYaw);
+	Matrix worldViewProjectionMatrix{ worldMatrix * pCamera->GetViewMatrix().Inverse() * pCamera->GetProjectionMatrix()};
+
+	for (size_t idx = 0; idx < m_VehicleVertices.size(); ++idx)
+	{
+		Vertex_Out vertex_out{ {m_VehicleVertices[idx].position.x,
+								m_VehicleVertices[idx].position.y,
+								m_VehicleVertices[idx].position.z,
+								1}
+								, 
+								m_VehicleVertices[idx].uv
+								,
+								{colors::White}
+								,
+								m_VehicleVertices[idx].normal
+								,
+								m_VehicleVertices[idx].tangent
+							};
+
+		// Position Transformation To NDC
+		vertex_out.position = worldViewProjectionMatrix.TransformPoint(vertex_out.position);
+
+		// Perspective Divide
+		vertex_out.position.x /= vertex_out.position.w;
+		vertex_out.position.y /= vertex_out.position.w;
+		vertex_out.position.z /= vertex_out.position.w;
+
+		// Normal & Tangent Transformation To World Space
+		vertex_out.normal = worldMatrix.TransformVector(vertex_out.normal);
+		vertex_out.tangent = worldMatrix.TransformVector(vertex_out.tangent);
+
+		// Create ViewDirection
+		vertex_out.viewDirection = worldMatrix.TransformVector(m_VehicleVertices[idx].position) - pCamera->GetOrigin();
+
+		m_VehicleVerticesOut[idx] = vertex_out;
+	}
+}
+
+bool Mesh::IsFrustumCullingRequired(const std::vector<Vertex_Out>& triangle) const
+{
+	for (const Vertex_Out& vertex : triangle)
+	{
+		if (vertex.position.x < -1.f || vertex.position.x > 1.f ||
+			vertex.position.y < -1.f || vertex.position.y > 1.f ||
+			vertex.position.z <  0.f || vertex.position.z > 1.f)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void Mesh::RenderTriangle(std::vector<Vertex_Out>& triangle, SDL_Surface* pBackBuffer, uint32_t* pBackBufferPixels, float* pDepthBufferPixels) const
+{
+	const Vector2 v0{ triangle[0].position.x, triangle[0].position.y };
+	const Vector2 v1{ triangle[1].position.x, triangle[1].position.y };
+	const Vector2 v2{ triangle[2].position.x, triangle[2].position.y };
+
+	Vector2 topLeft{};
+	Vector2 botRight{};
+	FindBoundingBoxCorners(topLeft, botRight, triangle);
+
+
+	for (int py{ int(topLeft.y) }; py < int(botRight.y); ++py)
+	{
+		for (int px{ int(topLeft.x) }; px < int(botRight.x); ++px)
+		{
+			Vector3 weights{};
+			ColorRGB finalColor{};
+			const Vector2 pixel_ssc{ float(px) + 0.5f , float(py) + 0.5f };
+
+			const float area{ Vector2::Cross(Vector2(v1, v2), Vector2(v1, v0)) };
+
+			weights.x = CalculateWeights(v1, v2, pixel_ssc, area);
+			weights.y = CalculateWeights(v2, v0, pixel_ssc, area);
+			weights.z = CalculateWeights(v0, v1, pixel_ssc, area);
+
+			if (IsPointInTriangle(weights))
+			{
+				const float zBufferValue{ 1 / ((weights.x / triangle[0].position.z) + (weights.y / triangle[1].position.z) + (weights.z / triangle[2].position.z)) };
+
+				if (zBufferValue < pDepthBufferPixels[px + py * m_WindowWidth])
+				{
+					pDepthBufferPixels[px + (py * m_WindowWidth)] = zBufferValue;
+
+					const float wInterpolated{ 1 / ((weights.x / triangle[0].position.w) + (weights.y / triangle[1].position.w) + (weights.z / triangle[2].position.w)) };
+
+					Vector2 uvInterpolated{ wInterpolated * (weights.x * (triangle[0].uv / triangle[0].position.w) +
+																weights.y * (triangle[1].uv / triangle[1].position.w) +
+																weights.z * (triangle[2].uv / triangle[2].position.w)) };
+
+					Vertex_Out interpolatedData{};
+					interpolatedData.uv = uvInterpolated;
+					interpolatedData.color = m_pDiffuseMap->Sample(uvInterpolated);
+					interpolatedData.normal = ((triangle[0].normal / triangle[0].position.w) * weights.x +
+						(triangle[1].normal / triangle[1].position.w) * weights.y +
+						(triangle[2].normal / triangle[2].position.w) * weights.z) * wInterpolated;
+					interpolatedData.normal.Normalize();
+
+					interpolatedData.tangent = ((triangle[0].tangent / triangle[0].position.w) * weights.x +
+						(triangle[1].tangent / triangle[1].position.w) * weights.y +
+						(triangle[2].tangent / triangle[2].position.w) * weights.z) * wInterpolated;
+					interpolatedData.tangent.Normalize();
+
+					interpolatedData.viewDirection = ((triangle[0].viewDirection / triangle[0].position.w) * weights.x +
+						(triangle[1].viewDirection / triangle[1].position.w) * weights.y +
+						(triangle[2].viewDirection / triangle[2].position.w) * weights.z) * wInterpolated;
+					interpolatedData.viewDirection.Normalize();
+
+
+					finalColor = PixelShading(interpolatedData);
+
+
+
+					//finalColor = m_pTextureVehicle->Sample(uvInterpolated);
+					finalColor.MaxToOne();
+
+					pBackBufferPixels[px + (py * m_WindowWidth)] = SDL_MapRGB(pBackBuffer->format,
+						static_cast<uint8_t>(finalColor.r * 255),
+						static_cast<uint8_t>(finalColor.g * 255),
+						static_cast<uint8_t>(finalColor.b * 255));
+				}
+			}
+		}
+	}
+}
+
+ColorRGB Mesh::PixelShading(const Vertex_Out& v) const
+{
+	const Vector3 lightDirection{ 0.577f, -0.577f ,0.577f };
+
+	//Construct correct normal
+	Vector3 binormal{ Vector3::Cross(v.normal,v.tangent) };
+	Matrix tangentSpaceAxis = Matrix{ v.tangent,binormal,v.normal,Vector3{} };
+	ColorRGB normalMapSample{ m_pNormalMap->Sample(v.uv) };
+	Vector3 sampledNormal{ normalMapSample.r, normalMapSample.g, normalMapSample.b };
+	sampledNormal.x = (2.f * sampledNormal.x) - 1.f;
+	sampledNormal.y = (2.f * sampledNormal.y) - 1.f;
+	sampledNormal.z = (2.f * sampledNormal.z) - 1.f;
+	sampledNormal = tangentSpaceAxis.TransformVector(sampledNormal);
+
+
+	//LambertCosine
+	float lambertCosine{};
+	if (m_IsNormalMapEnabled)
+	{
+		lambertCosine = std::max(Vector3::Dot(sampledNormal.Normalized(), -lightDirection), 0.f);
+	}
+	else
+	{
+		lambertCosine = std::max(Vector3::Dot(v.normal, -lightDirection), 0.f);
+	}
+
+
+	//Lambert Diffuse
+	ColorRGB lambertDiffuse{};
+	const float kd{ 7.f }; 
+	lambertDiffuse = m_pDiffuseMap->Sample(v.uv) * kd / static_cast<float>(M_PI);
+
+
+	//Phong
+	const Vector3 reflect{ lightDirection - 2 * (Vector3::Dot(v.normal,lightDirection)) * v.normal };
+	const float cosine{ std::max(Vector3::Dot(reflect, -v.viewDirection),0.f) };
+	const float phongExponent{ m_pGlossinessMap->Sample(v.uv).r };
+	const float shininess{ 25.f };
+	const float ks{ 1.f };
+	ColorRGB specularColor{ m_pSpecularMap->Sample(v.uv) };
+	const float phongSpecularReflection{ ks * powf(cosine,phongExponent * shininess) };
+	const ColorRGB phong{ specularColor * phongSpecularReflection };
+
+
+	switch (m_ShadingMode)
+	{
+	case ShadingMode::ObservedArea:
+		return ColorRGB{ lambertCosine ,lambertCosine ,lambertCosine };
+		break;
+	case ShadingMode::Diffuse:
+		return lambertDiffuse;
+		break;
+	case ShadingMode::Specular:
+		return phong;
+		break;
+	case ShadingMode::Combined:
+		return (lambertDiffuse + phong) * lambertCosine;
+		break;
+	default:
+		return (lambertDiffuse + phong) * lambertCosine;
+		break;
+	}
+}
+
+void Mesh::FindBoundingBoxCorners(Vector2& topLeft, Vector2& botRight, const std::vector<Vertex_Out>& triangle) const
+{
+	topLeft.x = std::min(std::min(triangle[0].position.x, triangle[1].position.x), triangle[2].position.x);
+	topLeft.x = Clamp(topLeft.x, 0.f, float(m_WindowWidth - 1));
+	topLeft.y = std::min(std::min(triangle[0].position.y, triangle[1].position.y), triangle[2].position.y);
+	topLeft.y = Clamp(topLeft.y, 0.f, float(m_WindowHeight - 1));
+
+	botRight.x = std::max(std::max(triangle[0].position.x, triangle[1].position.x), triangle[2].position.x);
+	botRight.x = Clamp(botRight.x, 0.f, float(m_WindowWidth - 1));
+	botRight.x = std::ceil(botRight.x);
+
+	botRight.y = std::max(std::max(triangle[0].position.y, triangle[1].position.y), triangle[2].position.y);
+	botRight.y = Clamp(botRight.y, 0.f, float(m_WindowHeight - 1));
+	botRight.y = std::ceil(botRight.y);
+}
+
+float Mesh::CalculateWeights(const Vector2& vertex1, const Vector2& vertex2, const Vector2& pixel, float area) const
+{
+	return Vector2::Cross(vertex2 - vertex1, pixel - vertex1) / area;
+}
+
+bool Mesh::IsPointInTriangle(const Vector3& weights) const
+{
+	return ((weights.x > 0) && (weights.y > 0) && (weights.z > 0));
+}
+
+
+ID3D11InputLayout* Mesh::GetInputLayoutPtr() const
 {
 	return m_pInputLayout;
 }
@@ -277,16 +536,35 @@ Vector3 Mesh::GetPosition() const
 	return m_Position;
 }
 
+ShadingMode Mesh::GetShadingMode() const
+{
+	return m_ShadingMode;
+}
+
+bool Mesh::GetIsNormalMapEnabled() const
+{
+	return m_IsNormalMapEnabled;
+}
+
+void Mesh::ToggleVisibility()
+{
+	m_IsVisible = !m_IsVisible;
+}
+
+void Mesh::ToggleShadingMode()
+{
+	m_ShadingMode = static_cast<ShadingMode>((static_cast<int>(m_ShadingMode) + 1) % m_NROFSHADINGMODES);
+}
+
+void Mesh::ToggleNormalMap()
+{
+	m_IsNormalMapEnabled = !m_IsNormalMapEnabled;
+}
+
 float Mesh::GetYaw() const
 {
 	return m_VehicleYaw;
 }
-
-size_t Mesh::GetNrOfVertices() const
-{
-	return m_VehicleVertices.size();
-}
-
 
 void Mesh::ParseFireObj(const std::string& filename)
 {
