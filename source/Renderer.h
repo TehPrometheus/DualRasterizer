@@ -37,7 +37,7 @@ namespace dae
 		void ToggleBackgroundColor();
 		Mesh* GetVehicleMeshPtr() const;
 		Mesh* GetFireMeshPtr() const;
-
+		bool GetIsUniformColorEnabled() const;
 		bool GetIsUsingDirectX() const;
 	private:
 

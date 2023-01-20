@@ -8,11 +8,37 @@
 #include "Renderer.h"
 
 using namespace dae;
+using namespace std;
+HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+#define SharedColor FOREGROUND_RED|FOREGROUND_GREEN;
 
 void ShutDown(SDL_Window* pWindow)
 {
 	SDL_DestroyWindow(pWindow);
 	SDL_Quit();
+}
+
+void PrintStartingInfo()
+{
+	SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN);
+	cout	<< "[Key Bindings] - SHARED\n"
+			<< "[F1] Toggle Rasterizer Mode (HARDWARE/SOFTWARE)\n"
+			<< "[F2] Toggle Vehicle Rotation (ON/OFF)\n"
+			<< "[F5] Cycle Shading Mode (COMBINED/OBSERVED_AREA/DIFFUSE/SPECULAR)\n"
+			<< "[F6] Toggle Normal Map (ON/OFF)\n"
+			<< "[F9] Cycle Cull Modes (BACK/FRONT/NONE)\n"
+			<< "[F10] Toggle Uniform ClearColor [On/Off]\n"
+			<< "[F11] Toggle Print FPS [On/Off]\n\n";
+
+	SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN);
+	cout	<< "[Key Bindings] - HARDWARE\n"
+			<< "[F3] Toggle FireFX (ON/OFF)\n"
+			<< "[F4] Cycle Sampler State (POINT/LINEAR/ANISOTROPIC)\n\n";
+
+	SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_RED);
+	cout	<< "[Key Bindings] - SOFTWARE\n"
+			<< "[F7] Toggle DepthBuffer Visualisation (ON/OFF)\n"
+			<< "[F8] Toggle BoundingBoxVisualisation (ON/OFF)\n\n";
 }
 
 int main(int argc, char* args[])
@@ -39,6 +65,7 @@ int main(int argc, char* args[])
 	//Initialize "framework"
 	const auto pTimer = new Timer();
 	const auto pRenderer = new Renderer(pWindow);
+	PrintStartingInfo();
 
 	//Start loop
 	pTimer->Start();
@@ -60,40 +87,63 @@ int main(int argc, char* args[])
 				if (e.key.keysym.scancode == SDL_SCANCODE_F1)
 				{
 					pRenderer->ToggleRenderer();
+					SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN);
+					cout << "**(SHARED) Rasterizer Mode = ";
+					if (pRenderer->GetIsUsingDirectX())
+					{
+						cout << "HARDWARE\n";
+					}
+					else
+					{
+						cout << "SOFTWARE\n";
+					}
 				}
+
 				if (e.key.keysym.scancode == SDL_SCANCODE_F2)
 				{
 					pRenderer->GetVehicleMeshPtr()->ToggleRotation();
 					pRenderer->GetFireMeshPtr()->ToggleRotation();
-
+					SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN);
+					cout << "**(SHARED) Vehicle Rotation ";
 					if (pRenderer->GetVehicleMeshPtr()->GetIsRotating())
 					{
-						std::cout << "Rotation Enabled\n";
+						cout << "ON\n";
 					}
 					else
 					{
-						std::cout << "Rotation Disabled\n";
+						cout << "OFF\n";
 					}
 				}
 				if (e.key.keysym.scancode == SDL_SCANCODE_F3 && pRenderer->GetIsUsingDirectX())
 				{
 					pRenderer->GetFireMeshPtr()->ToggleVisibility();
+					SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN);
+					cout << "**(HARDWARE) FireFX ";
+					if (pRenderer->GetFireMeshPtr()->GetVisibility())
+					{
+						cout << "ON\n";
+					}
+					else
+					{
+						cout << "OFF\n";
+					}
 				}
 				if (e.key.keysym.scancode == SDL_SCANCODE_F4 && pRenderer->GetIsUsingDirectX())
 				{
 					pRenderer->GetVehicleMeshPtr()->GetEffectPtr()->ToggleSampleState();
 					pRenderer->GetFireMeshPtr()->GetEffectPtr()->ToggleSampleState();
-
+					SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN);
+					cout << "**(HARDWARE) Sampler Filter = ";
 					switch (pRenderer->GetVehicleMeshPtr()->GetEffectPtr()->GetSampleState())
 					{
 					case sampleState::point:
-						std::cout << "Sample State = Point Sampling\n";
+						cout << "POINT\n";
 						break;
 					case sampleState::linear:
-						std::cout << "Sample State = Linear Sampling\n";
+						cout << "LINEAR\n";
 						break;
 					case sampleState::anisotropic:
-						std::cout << "Sample State = Anisotropic Sampling\n";
+						cout << "ANISOTROPIC\n";
 						break;
 					default:
 						break;
@@ -102,22 +152,22 @@ int main(int argc, char* args[])
 				if (e.key.keysym.scancode == SDL_SCANCODE_F5 && !pRenderer->GetIsUsingDirectX())
 				{
 					pRenderer->GetVehicleMeshPtr()->ToggleShadingMode();
-
-					std::cout << "Shading mode = ";
+					SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_RED);
+					cout << "**(SOFTWARE) Shading Mode = ";
 
 					switch (pRenderer->GetVehicleMeshPtr()->GetShadingMode())
 					{
 						case ShadingMode::ObservedArea:
-							std::cout << "Observed Area\n";
+							cout << "OBSERVED_AREA\n";
 							break;
 						case ShadingMode::Diffuse:
-							std::cout << "Diffuse\n";
+							cout << "DIFFUSE\n";
 							break;
 						case ShadingMode::Specular:
-							std::cout << "Specular\n";
+							cout << "SPECULAR\n";
 							break;
 						case ShadingMode::Combined:
-							std::cout << "Combined\n";
+							cout << "COMBINED\n";
 							break;
 						default:
 							break;
@@ -126,38 +176,64 @@ int main(int argc, char* args[])
 				if (e.key.keysym.scancode == SDL_SCANCODE_F6 && !pRenderer->GetIsUsingDirectX())
 				{
 					pRenderer->GetVehicleMeshPtr()->ToggleNormalMap();
+					SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_RED);
+					cout << "**(SOFTWARE) NormalMap ";
+
 					if (pRenderer->GetVehicleMeshPtr()->GetIsNormalMapEnabled())
 					{
-						std::cout << "Normal Map ON\n";
+						cout << "ON\n";
 					}
 					else
 					{
-						std::cout << "Normal Map OFF\n";
+						cout << "OFF\n";
 					}
 
 				}
 				if (e.key.keysym.scancode == SDL_SCANCODE_F7 && !pRenderer->GetIsUsingDirectX())
 				{
+					pRenderer->GetVehicleMeshPtr()->ToggleDepthBufferVisualization();
+					SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_RED);
+					cout << "**(SOFTWARE) DepthBuffer Visualization ";
 
+					if (pRenderer->GetVehicleMeshPtr()->GetDepthBufferBool())
+					{
+						cout << "ON\n";
+					}
+					else
+					{
+						cout << "OFF\n";
+					}
 				}
 				if (e.key.keysym.scancode == SDL_SCANCODE_F8 && !pRenderer->GetIsUsingDirectX())
 				{
+					pRenderer->GetVehicleMeshPtr()->ToggleBoundingBoxVisualization();
+					SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_RED);
+					cout << "**(SOFTWARE) BoundingBox Visualization ";
 
+					if (pRenderer->GetVehicleMeshPtr()->GetBoundingBoxBool())
+					{
+						cout << "ON\n";
+					}
+					else
+					{
+						cout << "OFF\n";
+					}
 				}
 				if (e.key.keysym.scancode == SDL_SCANCODE_F9)
 				{
 					pRenderer->GetVehicleMeshPtr()->GetEffectPtr()->ToggleCullingMode();
-
+					SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_RED);
+					cout << "**(SHARED) CullMode = ";
 					switch (pRenderer->GetVehicleMeshPtr()->GetEffectPtr()->GetCullMode())
 					{
 					case cullMode::backCulling:
-						std::cout << "Cull Mode = Back Culling\n";
+						cout << "BACK\n";
 						break;
 					case cullMode::frontCulling:
-						std::cout << "Cull Mode = Front Culling\n";
+						cout << "FRONT\n";
 						break;
 					case cullMode::noCulling:
-						std::cout << "Cull Mode = No Culling\n";
+						cout << "NONE\n";
 						break;
 					default:
 						break;
@@ -166,17 +242,30 @@ int main(int argc, char* args[])
 				if (e.key.keysym.scancode == SDL_SCANCODE_F10)
 				{
 					pRenderer->ToggleBackgroundColor();
+					SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_RED);
+					cout << "**(SHARED) Uniform ClearColor ";
+					if (pRenderer->GetIsUniformColorEnabled())
+					{
+						cout << "ON\n";
+					}
+					else
+					{
+						cout << "OFF\n";
+					}
 				}
 				if (e.key.keysym.scancode == SDL_SCANCODE_F11)
 				{
 					isFPSEnabled = !isFPSEnabled;
+					SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_RED);
+					cout << "**(SHARED) Print FPS ";
+
 					if (isFPSEnabled)
 					{
-						std::cout << "Print FPS ON\n";
+						cout << "ON\n";
 					}
 					else
 					{
-						std::cout << "Print FPS OFF\n";
+						cout << "OFF\n";
 					}
 
 				}
@@ -197,7 +286,8 @@ int main(int argc, char* args[])
 		if (printTimer >= 1.f && isFPSEnabled)
 		{
 			printTimer = 0.f;
-			std::cout << "dFPS: " << pTimer->GetdFPS() << std::endl;
+			SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_BLUE);
+			cout << "dFPS: " << pTimer->GetdFPS() << endl;
 		}
 	}
 	pTimer->Stop();

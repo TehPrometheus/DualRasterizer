@@ -362,6 +362,21 @@ void Mesh::RenderTriangle(std::vector<Vertex_Out>& triangle, SDL_Surface* pBackB
 		{
 			Vector3 weights{};
 			ColorRGB finalColor{};
+
+			if (m_IsBoundingBoxVisualizationEnabled)
+			{
+				finalColor = { 1.f, 1.f, 1.f };
+				finalColor.MaxToOne();
+
+				pBackBufferPixels[px + (py * m_WindowWidth)] = SDL_MapRGB(pBackBuffer->format,
+					static_cast<uint8_t>(finalColor.r * 255),
+					static_cast<uint8_t>(finalColor.g * 255),
+					static_cast<uint8_t>(finalColor.b * 255));
+				return;
+			}
+
+
+
 			const Vector2 pixel_ssc{ float(px) + 0.5f , float(py) + 0.5f };
 
 			const float area{ Vector2::Cross(Vector2(v1, v2), Vector2(v1, v0)) };
@@ -377,37 +392,43 @@ void Mesh::RenderTriangle(std::vector<Vertex_Out>& triangle, SDL_Surface* pBackB
 				if (zBufferValue < pDepthBufferPixels[px + py * m_WindowWidth])
 				{
 					pDepthBufferPixels[px + (py * m_WindowWidth)] = zBufferValue;
+					if (m_IsDepthBufferVisualizationEnabled)
+					{
+						const float remappedValue{ RemapValue(zBufferValue, 0.9925f, 1.f) }; 
+						finalColor = { remappedValue, remappedValue, remappedValue };
+					}
+					else
+					{
+					
+						const float wInterpolated{ 1 / ((weights.x / triangle[0].position.w) + (weights.y / triangle[1].position.w) + (weights.z / triangle[2].position.w)) };
 
-					const float wInterpolated{ 1 / ((weights.x / triangle[0].position.w) + (weights.y / triangle[1].position.w) + (weights.z / triangle[2].position.w)) };
+						Vector2 uvInterpolated{ wInterpolated * (weights.x * (triangle[0].uv / triangle[0].position.w) +
+																	weights.y * (triangle[1].uv / triangle[1].position.w) +
+																	weights.z * (triangle[2].uv / triangle[2].position.w)) };
 
-					Vector2 uvInterpolated{ wInterpolated * (weights.x * (triangle[0].uv / triangle[0].position.w) +
-																weights.y * (triangle[1].uv / triangle[1].position.w) +
-																weights.z * (triangle[2].uv / triangle[2].position.w)) };
+						Vertex_Out interpolatedData{};
+						interpolatedData.uv = uvInterpolated;
+						interpolatedData.color = m_pDiffuseMap->Sample(uvInterpolated);
+						interpolatedData.normal = ((triangle[0].normal / triangle[0].position.w) * weights.x +
+							(triangle[1].normal / triangle[1].position.w) * weights.y +
+							(triangle[2].normal / triangle[2].position.w) * weights.z) * wInterpolated;
+						interpolatedData.normal.Normalize();
 
-					Vertex_Out interpolatedData{};
-					interpolatedData.uv = uvInterpolated;
-					interpolatedData.color = m_pDiffuseMap->Sample(uvInterpolated);
-					interpolatedData.normal = ((triangle[0].normal / triangle[0].position.w) * weights.x +
-						(triangle[1].normal / triangle[1].position.w) * weights.y +
-						(triangle[2].normal / triangle[2].position.w) * weights.z) * wInterpolated;
-					interpolatedData.normal.Normalize();
+						interpolatedData.tangent = ((triangle[0].tangent / triangle[0].position.w) * weights.x +
+							(triangle[1].tangent / triangle[1].position.w) * weights.y +
+							(triangle[2].tangent / triangle[2].position.w) * weights.z) * wInterpolated;
+						interpolatedData.tangent.Normalize();
 
-					interpolatedData.tangent = ((triangle[0].tangent / triangle[0].position.w) * weights.x +
-						(triangle[1].tangent / triangle[1].position.w) * weights.y +
-						(triangle[2].tangent / triangle[2].position.w) * weights.z) * wInterpolated;
-					interpolatedData.tangent.Normalize();
-
-					interpolatedData.viewDirection = ((triangle[0].viewDirection / triangle[0].position.w) * weights.x +
-						(triangle[1].viewDirection / triangle[1].position.w) * weights.y +
-						(triangle[2].viewDirection / triangle[2].position.w) * weights.z) * wInterpolated;
-					interpolatedData.viewDirection.Normalize();
+						interpolatedData.viewDirection = ((triangle[0].viewDirection / triangle[0].position.w) * weights.x +
+							(triangle[1].viewDirection / triangle[1].position.w) * weights.y +
+							(triangle[2].viewDirection / triangle[2].position.w) * weights.z) * wInterpolated;
+						interpolatedData.viewDirection.Normalize();
 
 
-					finalColor = PixelShading(interpolatedData);
+						finalColor = PixelShading(interpolatedData);
+					}
 
 
-
-					//finalColor = m_pTextureVehicle->Sample(uvInterpolated);
 					finalColor.MaxToOne();
 
 					pBackBufferPixels[px + (py * m_WindowWidth)] = SDL_MapRGB(pBackBuffer->format,
@@ -418,6 +439,19 @@ void Mesh::RenderTriangle(std::vector<Vertex_Out>& triangle, SDL_Surface* pBackB
 			}
 		}
 	}
+}
+
+float Mesh::RemapValue(float value, float floor, float ceiling) const
+{
+	if (value > ceiling)
+	{
+		return 1.f;
+	}
+	if (value < floor)
+	{
+		return 0.f;
+	}
+	return (value - floor) / (ceiling - floor);
 }
 
 ColorRGB Mesh::PixelShading(const Vertex_Out& v) const
@@ -487,17 +521,30 @@ ColorRGB Mesh::PixelShading(const Vertex_Out& v) const
 void Mesh::FindBoundingBoxCorners(Vector2& topLeft, Vector2& botRight, const std::vector<Vertex_Out>& triangle) const
 {
 	topLeft.x = std::min(std::min(triangle[0].position.x, triangle[1].position.x), triangle[2].position.x);
-	topLeft.x = Clamp(topLeft.x, 0.f, float(m_WindowWidth - 1));
+	topLeft.x = (topLeft.x < 0 ? 0 : topLeft.x);
 	topLeft.y = std::min(std::min(triangle[0].position.y, triangle[1].position.y), triangle[2].position.y);
-	topLeft.y = Clamp(topLeft.y, 0.f, float(m_WindowHeight - 1));
+	topLeft.y = (topLeft.y < 0 ? 0 : topLeft.y);
 
 	botRight.x = std::max(std::max(triangle[0].position.x, triangle[1].position.x), triangle[2].position.x);
-	botRight.x = Clamp(botRight.x, 0.f, float(m_WindowWidth - 1));
+	botRight.x = (botRight.x >= m_WindowWidth ? m_WindowWidth - 1 : botRight.x);
 	botRight.x = std::ceil(botRight.x);
 
 	botRight.y = std::max(std::max(triangle[0].position.y, triangle[1].position.y), triangle[2].position.y);
-	botRight.y = Clamp(botRight.y, 0.f, float(m_WindowHeight - 1));
+	botRight.y = (botRight.y >= m_WindowHeight ? m_WindowHeight - 1 : botRight.y);
 	botRight.y = std::ceil(botRight.y);
+
+	//topLeft.x = std::min(std::min(triangle[0].position.x, triangle[1].position.x), triangle[2].position.x);
+	//topLeft.x = Clamp(topLeft.x, 0.f, float(m_WindowWidth - 1));
+	//topLeft.y = std::min(std::min(triangle[0].position.y, triangle[1].position.y), triangle[2].position.y);
+	//topLeft.y = Clamp(topLeft.y, 0.f, float(m_WindowHeight - 1));
+
+	//botRight.x = std::max(std::max(triangle[0].position.x, triangle[1].position.x), triangle[2].position.x);
+	//botRight.x = Clamp(botRight.x, 0.f, float(m_WindowWidth - 1));
+	//botRight.x = std::ceil(botRight.x);
+
+	//botRight.y = std::max(std::max(triangle[0].position.y, triangle[1].position.y), triangle[2].position.y);
+	//botRight.y = Clamp(botRight.y, 0.f, float(m_WindowHeight - 1));
+	//botRight.y = std::ceil(botRight.y);
 }
 
 float Mesh::CalculateWeights(const Vector2& vertex1, const Vector2& vertex2, const Vector2& pixel, float area) const
@@ -546,6 +593,21 @@ bool Mesh::GetIsNormalMapEnabled() const
 	return m_IsNormalMapEnabled;
 }
 
+bool Mesh::GetVisibility() const
+{
+	return m_IsVisible;
+}
+
+bool Mesh::GetDepthBufferBool() const
+{
+	return m_IsDepthBufferVisualizationEnabled;
+}
+
+bool Mesh::GetBoundingBoxBool() const
+{
+	return m_IsBoundingBoxVisualizationEnabled;
+}
+
 void Mesh::ToggleVisibility()
 {
 	m_IsVisible = !m_IsVisible;
@@ -559,6 +621,16 @@ void Mesh::ToggleShadingMode()
 void Mesh::ToggleNormalMap()
 {
 	m_IsNormalMapEnabled = !m_IsNormalMapEnabled;
+}
+
+void Mesh::ToggleDepthBufferVisualization()
+{
+	m_IsDepthBufferVisualizationEnabled = !m_IsDepthBufferVisualizationEnabled;
+}
+
+void Mesh::ToggleBoundingBoxVisualization()
+{
+	m_IsBoundingBoxVisualizationEnabled = !m_IsBoundingBoxVisualizationEnabled;
 }
 
 float Mesh::GetYaw() const
