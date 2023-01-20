@@ -291,7 +291,7 @@ int main(int argc, char* args[])
 		}
 	}
 	pTimer->Stop();
-
+	SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_BLUE);
 	//Shutdown "framework"
 	delete pRenderer;
 	delete pTimer;
