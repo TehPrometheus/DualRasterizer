@@ -18,7 +18,7 @@ namespace dae {
 		m_AspectRatio = (float)m_Width / (float)m_Height;
 
 		//Initialize Camera
-		m_pCamera = new Camera(45.f, {0,0,-50.f}, m_AspectRatio);
+		m_pCamera = new Camera(45.f, {0,0,0}, m_AspectRatio);
 
 		//Initialize DirectX pipeline
 		const HRESULT result = InitializeDirectX();

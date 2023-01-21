@@ -29,19 +29,19 @@ void Camera::Update(const Timer* pTimer)
 	{
 		m_SpeedMultiplier = 3.f;
 	}
-	if (pKeyboardState[SDL_SCANCODE_W])
+	if (pKeyboardState[SDL_SCANCODE_W] || pKeyboardState[SDL_SCANCODE_UP])
 	{
 		m_Origin += m_SpeedMultiplier * m_MovementSpeed * deltaTime * m_Forward;
 	}
-	if (pKeyboardState[SDL_SCANCODE_A])
+	if (pKeyboardState[SDL_SCANCODE_A] || pKeyboardState[SDL_SCANCODE_LEFT])
 	{
 		m_Origin += m_SpeedMultiplier * m_MovementSpeed * deltaTime * -m_Right;
 	}
-	if (pKeyboardState[SDL_SCANCODE_S])
+	if (pKeyboardState[SDL_SCANCODE_S] || pKeyboardState[SDL_SCANCODE_DOWN])
 	{
 		m_Origin += m_SpeedMultiplier * m_MovementSpeed * deltaTime * -m_Forward;
 	}
-	if (pKeyboardState[SDL_SCANCODE_D])
+	if (pKeyboardState[SDL_SCANCODE_D] || pKeyboardState[SDL_SCANCODE_RIGHT])
 	{
 		m_Origin += m_SpeedMultiplier * m_MovementSpeed * deltaTime * m_Right;
 	}
@@ -151,5 +151,10 @@ Matrix Camera::GetProjectionMatrix() const
 Vector3 Camera::GetOrigin() const
 {
 	return m_Origin;
+}
+
+Vector3 Camera::GetForwardVector() const
+{
+	return m_Forward;
 }
 

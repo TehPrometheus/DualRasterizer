@@ -72,7 +72,7 @@ ID3DX11Effect* Effect::LoadEffect(ID3D11Device* pDevice, const std::wstring& ass
 	return pEffect;
 }
 
-ID3DX11EffectTechnique* Effect::GetTechniquePtr()
+ID3DX11EffectTechnique* Effect::GetTechniquePtr() const
 {
 	return m_pActiveTechnique;
 }
@@ -83,7 +83,7 @@ void Effect::SetWorldViewProjectionMatrix(const Matrix& worldViewProjectionMatri
 	m_pMatWorldViewProjVariable->SetMatrix(reinterpret_cast<const float*>(&worldViewProjectionMatrix));
 }
 
-void Effect::SetDiffuseMap(dae::Texture* pDiffuseTexture)
+void Effect::SetDiffuseMap(Texture* pDiffuseTexture)
 {
 	if (m_pDiffuseMapVariable)
 		m_pDiffuseMapVariable->SetResource(pDiffuseTexture->GetResourceViewTexturePtr());
@@ -91,7 +91,7 @@ void Effect::SetDiffuseMap(dae::Texture* pDiffuseTexture)
 
 void Effect::ToggleSampleState()
 {
-	m_SampleState = static_cast<sampleState>((static_cast<int>(m_SampleState) + 1) % NROFSAMPLESTATES);
+	m_SampleState = static_cast<sampleState>((static_cast<int>(m_SampleState) + 1) % m_NROFSAMPLESTATES);
 
 	switch (m_SampleState)
 	{
@@ -151,7 +151,7 @@ void Effect::ToggleSampleState()
 
 void Effect::ToggleCullingMode()
 {
-	m_CullMode = static_cast<cullMode>((static_cast<int>(m_CullMode) + 1) % NROFCULLMODES);
+	m_CullMode = static_cast<cullMode>((static_cast<int>(m_CullMode) + 1) % m_NROFCULLMODES);
 
 	switch (m_CullMode)
 	{

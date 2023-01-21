@@ -13,6 +13,9 @@ namespace dae
 	class Renderer final
 	{
 	public:
+		// -----------------------------------------------
+		// Constructor and destructor
+		// -----------------------------------------------
 		Renderer(SDL_Window* pWindow);
 		~Renderer();
 
@@ -20,63 +23,63 @@ namespace dae
 		// -----------------------------------------------
 		// Copy/move constructors and assignment operators
 		// -----------------------------------------------
-		Renderer(const Renderer&) = delete;
-		Renderer(Renderer&&) noexcept = delete;
-		Renderer& operator=(const Renderer&) = delete;
-		Renderer& operator=(Renderer&&) noexcept = delete;
+		Renderer(const Renderer&)					= delete;
+		Renderer(Renderer&&) noexcept				= delete;
+		Renderer& operator=(const Renderer&)		= delete;
+		Renderer& operator=(Renderer&&) noexcept	= delete;
 
 
 		//------------------------------------------------
 		// Public member functions						
 		//------------------------------------------------
-		void Update(const Timer* pTimer);
+		bool GetIsUsingDirectX() const;
+		bool GetIsUniformColorEnabled() const;
+
 		void Render() const;
+		void ToggleRenderer();
 		void HardwareRender() const;
 		void SoftwareRender() const;
-		void ToggleRenderer();
 		void ToggleBackgroundColor();
-		Mesh* GetVehicleMeshPtr() const;
+		void Update(const Timer* pTimer);
+
 		Mesh* GetFireMeshPtr() const;
-		bool GetIsUniformColorEnabled() const;
-		bool GetIsUsingDirectX() const;
+		Mesh* GetVehicleMeshPtr() const;
 	private:
 
 		//------------------------------------------------
 		// Member variables						
 		//------------------------------------------------
+		int								m_Width					{ 0 };
+		int								m_Height				{ 0 };
+		const static int				m_NROFMESHES			{ 2 };
 
-		SDL_Window* m_pWindow{};
-		Camera* m_pCamera{};
-		ColorRGB m_BackgroundColor{ colors::CornflowerBlue };
+		float							m_AspectRatio			{ 0 };
+		float*							m_pDepthBufferPixels	{ nullptr };
 
-		int m_Width{};
-		int m_Height{};
-		const static int m_NROFMESHES{ 2 };
+		bool							m_IsInitialized			{ false };
+		bool							m_IsUsingDirectX		{ true  };
+		bool							m_IsUniformColorEnabled	{ false };
 
-		float m_AspectRatio{};
-		
-		bool m_IsInitialized{ false };
-		bool m_IsUsingDirectX{ true };
-		bool m_IsUniformColorEnabled{ false };
+		SDL_Window*						m_pWindow				{ nullptr };
+		SDL_Surface*					m_pFrontBuffer			{ nullptr };
+		SDL_Surface*					m_pBackBuffer			{ nullptr };
+		uint32_t*						m_pBackBufferPixels		{ nullptr };
 
-		std::array<Mesh*, m_NROFMESHES> m_pMeshArr{};
+		Camera*							m_pCamera				{ nullptr };
 
-		ID3D11Device* m_pDevice{ nullptr };
-		ID3D11DeviceContext* m_pDeviceContext{ nullptr };
-		IDXGISwapChain* m_pSwapChain{ nullptr };
+		ID3D11Device*					m_pDevice				{ nullptr };
+		ID3D11DeviceContext*			m_pDeviceContext		{ nullptr };
+		IDXGISwapChain*					m_pSwapChain			{ nullptr };
 
-		ID3D11Texture2D* m_pDepthStencilBuffer{ nullptr };
-		ID3D11DepthStencilView* m_pDepthStencilView{ nullptr };
+		ID3D11Texture2D*				m_pDepthStencilBuffer	{ nullptr };
+		ID3D11DepthStencilView*			m_pDepthStencilView		{ nullptr };
 
-		ID3D11RenderTargetView* m_pRenderTargetView{ nullptr };
-		ID3D11Resource* m_pRenderTargetBuffer{ nullptr };
+		ID3D11RenderTargetView*			m_pRenderTargetView		{ nullptr };
+		ID3D11Resource*					m_pRenderTargetBuffer	{ nullptr };
 
+		std::array<Mesh*, m_NROFMESHES> m_pMeshArr				{};
+		ColorRGB						m_BackgroundColor		{ colors::CornflowerBlue };
 
-		SDL_Surface* m_pFrontBuffer{ nullptr };
-		SDL_Surface* m_pBackBuffer{ nullptr };
-		uint32_t* m_pBackBufferPixels{};
-
-		float* m_pDepthBufferPixels{};
 
 		//------------------------------------------------
 		// Private member functions						

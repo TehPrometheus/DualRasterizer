@@ -82,20 +82,20 @@ DepthStencilState gDepthStencilState{};
 
 RasterizerState gBackCullRasterizerState
 {
-	CullMode = front;
-	FrontCounterClockwise = true;
+	CullMode = back;
+	FrontCounterClockwise = false;
 };
 
 RasterizerState gFrontCullRasterizerState
 {
-	CullMode = back;
-	FrontCounterClockwise = true;
+	CullMode = front;
+	FrontCounterClockwise = false;
 };
 
 RasterizerState gNoCullRasterizerState
 {
 	CullMode = none;
-	FrontCounterClockwise = true;
+	FrontCounterClockwise = false;
 };
 
 //------------------------------------------------
