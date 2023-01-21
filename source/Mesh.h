@@ -29,7 +29,9 @@ enum class ShadingMode
 class Mesh final
 {
 public:
-
+	// -----------------------------------------------
+	// Constructors and destructor
+	// -----------------------------------------------
 	Mesh(ID3D11Device* pDeviceInput, const std::string& objPath, const std::string& diffuseMapPath, const Vector3& position);
 	Mesh(ID3D11Device* pDeviceInput, const std::string& objPath, const std::string& diffuseMapPath, const std::string& normalMapPath, const std::string& specularMapPath, const std::string& glossinessMapPath, const Vector3& position, int windowWidth, int windowHeight);
 	~Mesh();
@@ -45,72 +47,85 @@ public:
 	//------------------------------------------------
 	// Public member functions						
 	//------------------------------------------------
-	void Update(const Timer* pTimer);
-	void HardwareRender(ID3D11DeviceContext* pDeviceContext, Camera* pCamera) const;
-	void SoftwareRender(Camera* pCamera, SDL_Surface* pBackBuffer, uint32_t* pBackBufferPixels, float* pDepthBufferPixels);
-	void ToggleRotation();
-	void ToggleVisibility();
-	void ToggleShadingMode();
-	void ToggleNormalMap();
-	void ToggleDepthBufferVisualization();
-	void ToggleBoundingBoxVisualization();
-	bool GetIsRotating() const;
-	float GetYaw() const;
-	ID3D11InputLayout* GetInputLayoutPtr() const;
-	Effect* GetEffectPtr() const;
-	Vector3 GetPosition() const;
-	ShadingMode GetShadingMode() const;
-	bool GetIsNormalMapEnabled() const;
-	bool GetVisibility() const;
-	bool GetDepthBufferBool() const;
-	bool GetBoundingBoxBool() const;
+	float				GetYaw() const;
+
+	bool				GetIsRotating() const;
+	bool				GetIsNormalMapEnabled() const;
+	bool				GetVisibility() const;
+	bool				GetDepthBufferBool() const;
+	bool				GetBoundingBoxBool() const;
+
+	void				ToggleNormalMap();
+	void				ToggleRotation();
+	void				ToggleVisibility();
+	void				ToggleShadingMode();
+	void				Update(const Timer* pTimer);
+	void				ToggleDepthBufferVisualization();
+	void				ToggleBoundingBoxVisualization();
+	void				HardwareRender(ID3D11DeviceContext* pDeviceContext, Camera* pCamera) const;
+	void				SoftwareRender(Camera* pCamera, SDL_Surface* pBackBuffer, uint32_t* pBackBufferPixels, float* pDepthBufferPixels);
+
+	Vector3				GetPosition() const;
+	Effect*				GetEffectPtr() const;
+	ShadingMode			GetShadingMode() const;
+	ID3D11InputLayout*	GetInputLayoutPtr() const;
+
 private:
 
 	//------------------------------------------------
 	// Member variables						
 	//------------------------------------------------
-	int m_WindowWidth{};
-	int m_WindowHeight{};
-	const static int m_NROFSHADINGMODES{ 4 };
+	const int					m_WindowWidth						{};
+	const int					m_WindowHeight						{};
+	const static int			m_NROFSHADINGMODES					{ 4 };
+	
+	float						m_VehicleYaw						{};
+	float						m_AccuSec							{};
 
-	float m_VehicleYaw{};
-	float m_AccuSec{};
-	bool m_IsRotating{ true };
-	bool m_IsNormalMapEnabled{ true };
-	bool m_IsVisible{ true };
-	bool m_IsDepthBufferVisualizationEnabled{ false };
-	bool m_IsBoundingBoxVisualizationEnabled{ false };
-	Vector3 m_Position{};
-	ShadingMode m_ShadingMode{ ShadingMode::Combined };
+	bool						m_IsRotating						{ true };
+	bool						m_IsNormalMapEnabled				{ true };
+	bool						m_IsVisible							{ true };
+	bool						m_IsDepthBufferVisualizationEnabled	{ false };
+	bool						m_IsBoundingBoxVisualizationEnabled	{ false };
 
-	Effect* m_pEffect{};
-	ID3D11InputLayout* m_pInputLayout{};
+	Vector3						m_Position				{};
+	ShadingMode					m_ShadingMode			{ ShadingMode::Combined };
 
-	ID3D11Buffer* m_pVertexBuffer{};
-	ID3D11Buffer* m_pIndexBuffer{};
-	uint32_t m_NumIndices{};
+	Effect*						m_pEffect				{ nullptr };
+	ID3D11InputLayout*			m_pInputLayout			{ nullptr };
 
-	Texture* m_pNormalMap		{ nullptr };
-	Texture* m_pDiffuseMap		{ nullptr };
-	Texture* m_pSpecularMap		{ nullptr };
-	Texture* m_pGlossinessMap	{ nullptr };
+	ID3D11Buffer*				m_pVertexBuffer			{ nullptr };
+	ID3D11Buffer*				m_pIndexBuffer			{ nullptr };
+	uint32_t					m_NumIndices			{};
+
+	Texture*					m_pNormalMap			{ nullptr };
+	Texture*					m_pDiffuseMap			{ nullptr };
+	Texture*					m_pSpecularMap			{ nullptr };
+	Texture*					m_pGlossinessMap		{ nullptr };
 
 
-	std::vector<Vertex_Out> m_VehicleVerticesOut{};
-	std::vector<Vertex_Vehicle> m_VehicleVertices{};
-	std::vector<Vertex_Fire> m_FireVertices{};
-	std::vector<uint32_t> m_Indices{};
+	std::vector<uint32_t>		m_Indices				{};
+	std::vector<Vertex_Out>		m_VehicleVerticesOut	{};
+	std::vector<Vertex_Fire>	m_FireVertices			{};
+	std::vector<Vertex_Vehicle> m_VehicleVertices		{};
 
-	void ParseFireObj(const std::string& filename);
-	void VertexTransformationFunction( Camera* pCamera);
-	void RenderTriangle(std::vector<Vertex_Out>& triangle, SDL_Surface* pBackBuffer, uint32_t* pBackBufferPixels, float* pDepthBufferPixels) const;
-	void FindBoundingBoxCorners(Vector2& topLeft, Vector2& botRight, const std::vector<Vertex_Out>& triangle) const;
-	bool IsFrustumCullingRequired(const std::vector<Vertex_Out>& triangle) const;
-	bool ParseObj(const std::string& filename, std::vector<Vertex_Vehicle>& vertices, std::vector<uint32_t>& indices, bool flipAxisAndWinding = true);
-	bool IsPointInTriangle(const Vector3& weights) const;
-	float CalculateWeights(const Vector2& vertex1, const Vector2& vertex2, const Vector2& pixel, float area) const;
-	ColorRGB PixelShading(const Vertex_Out& v) const;
-	inline float RemapValue(float value, float floor, float ceiling) const;
+	//------------------------------------------------
+	// Private member functions						
+	//------------------------------------------------
+	float		RemapValue(float value, float min, float max) const;
+	float		CalculateWeights(const Vector2& vertex1, const Vector2& vertex2, const Vector2& pixel, float area) const;
 
+	void		ParseFireObj(const std::string& filename);
+	void		VertexTransformationFunction(Camera* pCamera);
+	void		RenderTriangle(std::vector<Vertex_Out>& triangle, SDL_Surface* pBackBuffer, uint32_t* pBackBufferPixels, float* pDepthBufferPixels) const;
+	void		FindBoundingBoxCorners(Vector2& topLeft, Vector2& botRight, const std::vector<Vertex_Out>& triangle) const;
+
+	bool		IsFrustumCullingRequired(const std::vector<Vertex_Out>& triangle) const;
+	bool		IsTriangleCullingRequired(Camera* pCamera, const std::vector<Vertex_Out>& triangle) const;
+	bool		ParseObj(const std::string& filename, std::vector<Vertex_Vehicle>& vertices, std::vector<uint32_t>& indices, bool flipAxisAndWinding = true);
+	bool		IsPointInTriangle(const Vector3& weights) const;
+
+	ColorRGB	PixelShading(const Vertex_Out& v) const;
+	Vertex_Out	ConstructInterpolatedData(const Vector3& weights, const std::vector<Vertex_Out>& triangle, float wInterpolated) const;
 };
 

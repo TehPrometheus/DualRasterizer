@@ -5,9 +5,9 @@
 #include <assert.h>
 
 Mesh::Mesh(ID3D11Device* pDeviceInput, const std::string& objPath, const std::string& diffuseMapPath, const Vector3& position)
+	: m_Position(position)
 {
 	m_pEffect = new Effect_Fire(pDeviceInput,L"Resources/Fire_Shader.fx");
-
 	ParseFireObj(objPath);
 
 	//Create Vertex Layout
@@ -81,6 +81,8 @@ Mesh::Mesh(ID3D11Device* pDeviceInput, const std::string& objPath, const std::st
 Mesh::Mesh(ID3D11Device* pDeviceInput, const std::string& objPath, const std::string& diffuseMapPath, const std::string& normalMapPath, const std::string& specularMapPath, const std::string& glossinessMapPath, const Vector3& position, int windowWidth, int windowHeight)
 	: m_WindowWidth{windowWidth}
 	, m_WindowHeight{windowHeight}
+	, m_Position(position)
+
 {
 	m_pEffect = new Effect_Vehicle(pDeviceInput,L"Resources/Vehicle_Shader.fx");
 
@@ -191,7 +193,6 @@ Mesh::~Mesh()
 	m_pInputLayout->Release();
 }
 
-
 void Mesh::Update(const Timer* pTimer)
 {
 	if (m_IsRotating)
@@ -207,7 +208,7 @@ void Mesh::HardwareRender(ID3D11DeviceContext* pDeviceContext, Camera* pCamera) 
 	if (!m_IsVisible) return;
 
 	//1. Set Matrices
-	dae::Matrix worldMatrix = Matrix::CreateTranslation(m_Position) * Matrix::CreateRotationY(m_VehicleYaw);
+	dae::Matrix worldMatrix = Matrix::CreateRotationY(m_VehicleYaw) * Matrix::CreateTranslation(m_Position);
 	dae::Matrix viewMatrix{ pCamera->GetViewMatrix().Inverse() };
 	dae::Matrix inverseViewMatrix{ pCamera->GetViewMatrix() };
 	dae::Matrix projectionMatrix{ pCamera->GetProjectionMatrix() };
@@ -272,7 +273,7 @@ void Mesh::SoftwareRender(Camera* pCamera, SDL_Surface* pBackBuffer, uint32_t* p
 		triangle.push_back(m_VehicleVerticesOut[ m_Indices[idx + 2] ]);
 
 		// Optimisation Stage
-		if (IsFrustumCullingRequired(triangle))
+		if (IsFrustumCullingRequired(triangle) || IsTriangleCullingRequired(pCamera, triangle))
 		{
 			continue;
 		}
@@ -292,7 +293,7 @@ void Mesh::SoftwareRender(Camera* pCamera, SDL_Surface* pBackBuffer, uint32_t* p
 
 void Mesh::VertexTransformationFunction(Camera* pCamera)
 {
-	Matrix worldMatrix = Matrix::CreateTranslation(m_Position) * Matrix::CreateRotationY(m_VehicleYaw);
+	Matrix worldMatrix = Matrix::CreateRotationY(m_VehicleYaw) * Matrix::CreateTranslation(m_Position);
 	Matrix worldViewProjectionMatrix{ worldMatrix * pCamera->GetViewMatrix().Inverse() * pCamera->GetProjectionMatrix()};
 
 	for (size_t idx = 0; idx < m_VehicleVertices.size(); ++idx)
@@ -345,6 +346,26 @@ bool Mesh::IsFrustumCullingRequired(const std::vector<Vertex_Out>& triangle) con
 	return false;
 }
 
+bool Mesh::IsTriangleCullingRequired(Camera* pCamera, const std::vector<Vertex_Out>& triangle) const
+{
+	if(m_pEffect->GetCullMode() == cullMode::noCulling) return false;
+
+	const Vector3 normal{ Vector3::Cross(triangle[1].position - triangle[0].position,triangle[2].position - triangle[0].position) };
+	const float dotProduct{ Vector3::Dot(normal, pCamera->GetForwardVector()) };
+	
+	if (m_pEffect->GetCullMode() == cullMode::backCulling)
+	{
+		if (dotProduct < 0) return false;
+		return true;
+	}
+	else if (m_pEffect->GetCullMode() == cullMode::frontCulling)
+	{
+		if (dotProduct > 0) return false;
+		return true;
+	}
+
+}
+
 void Mesh::RenderTriangle(std::vector<Vertex_Out>& triangle, SDL_Surface* pBackBuffer, uint32_t* pBackBufferPixels, float* pDepthBufferPixels) const
 {
 	const Vector2 v0{ triangle[0].position.x, triangle[0].position.y };
@@ -372,12 +393,11 @@ void Mesh::RenderTriangle(std::vector<Vertex_Out>& triangle, SDL_Surface* pBackB
 					static_cast<uint8_t>(finalColor.r * 255),
 					static_cast<uint8_t>(finalColor.g * 255),
 					static_cast<uint8_t>(finalColor.b * 255));
-				return;
+
+				continue;
 			}
 
-
-
-			const Vector2 pixel_ssc{ float(px) + 0.5f , float(py) + 0.5f };
+			const Vector2 pixel_ssc{ float(px) + 0.5f, float(py) + 0.5f };
 
 			const float area{ Vector2::Cross(Vector2(v1, v2), Vector2(v1, v0)) };
 
@@ -385,73 +405,84 @@ void Mesh::RenderTriangle(std::vector<Vertex_Out>& triangle, SDL_Surface* pBackB
 			weights.y = CalculateWeights(v2, v0, pixel_ssc, area);
 			weights.z = CalculateWeights(v0, v1, pixel_ssc, area);
 
-			if (IsPointInTriangle(weights))
+			if (!IsPointInTriangle(weights))
 			{
-				const float zBufferValue{ 1 / ((weights.x / triangle[0].position.z) + (weights.y / triangle[1].position.z) + (weights.z / triangle[2].position.z)) };
-
-				if (zBufferValue < pDepthBufferPixels[px + py * m_WindowWidth])
-				{
-					pDepthBufferPixels[px + (py * m_WindowWidth)] = zBufferValue;
-					if (m_IsDepthBufferVisualizationEnabled)
-					{
-						const float remappedValue{ RemapValue(zBufferValue, 0.9925f, 1.f) }; 
-						finalColor = { remappedValue, remappedValue, remappedValue };
-					}
-					else
-					{
-					
-						const float wInterpolated{ 1 / ((weights.x / triangle[0].position.w) + (weights.y / triangle[1].position.w) + (weights.z / triangle[2].position.w)) };
-
-						Vector2 uvInterpolated{ wInterpolated * (weights.x * (triangle[0].uv / triangle[0].position.w) +
-																	weights.y * (triangle[1].uv / triangle[1].position.w) +
-																	weights.z * (triangle[2].uv / triangle[2].position.w)) };
-
-						Vertex_Out interpolatedData{};
-						interpolatedData.uv = uvInterpolated;
-						interpolatedData.color = m_pDiffuseMap->Sample(uvInterpolated);
-						interpolatedData.normal = ((triangle[0].normal / triangle[0].position.w) * weights.x +
-							(triangle[1].normal / triangle[1].position.w) * weights.y +
-							(triangle[2].normal / triangle[2].position.w) * weights.z) * wInterpolated;
-						interpolatedData.normal.Normalize();
-
-						interpolatedData.tangent = ((triangle[0].tangent / triangle[0].position.w) * weights.x +
-							(triangle[1].tangent / triangle[1].position.w) * weights.y +
-							(triangle[2].tangent / triangle[2].position.w) * weights.z) * wInterpolated;
-						interpolatedData.tangent.Normalize();
-
-						interpolatedData.viewDirection = ((triangle[0].viewDirection / triangle[0].position.w) * weights.x +
-							(triangle[1].viewDirection / triangle[1].position.w) * weights.y +
-							(triangle[2].viewDirection / triangle[2].position.w) * weights.z) * wInterpolated;
-						interpolatedData.viewDirection.Normalize();
-
-
-						finalColor = PixelShading(interpolatedData);
-					}
-
-
-					finalColor.MaxToOne();
-
-					pBackBufferPixels[px + (py * m_WindowWidth)] = SDL_MapRGB(pBackBuffer->format,
-						static_cast<uint8_t>(finalColor.r * 255),
-						static_cast<uint8_t>(finalColor.g * 255),
-						static_cast<uint8_t>(finalColor.b * 255));
-				}
+				continue;
 			}
+
+			const float zBufferValue{ 1 / ((weights.x / triangle[0].position.z) + (weights.y / triangle[1].position.z) + (weights.z / triangle[2].position.z)) };
+
+			if (zBufferValue > pDepthBufferPixels[px + py * m_WindowWidth])
+			{
+				continue;
+			}
+
+			pDepthBufferPixels[px + (py * m_WindowWidth)] = zBufferValue;
+
+			if (m_IsDepthBufferVisualizationEnabled)
+			{
+				const float bufferColor{ RemapValue(zBufferValue, 0.9f, 1.f) }; 
+				finalColor = { bufferColor, bufferColor, bufferColor };
+			}
+
+			else
+			{
+				const float wInterpolated{ 1 / ((weights.x / triangle[0].position.w) + (weights.y / triangle[1].position.w) + (weights.z / triangle[2].position.w)) };
+
+				Vertex_Out interpolatedData{ ConstructInterpolatedData(weights,triangle,wInterpolated) };
+
+				finalColor = PixelShading(interpolatedData);
+			}
+
+
+			finalColor.MaxToOne();
+
+			pBackBufferPixels[px + (py * m_WindowWidth)] = SDL_MapRGB(pBackBuffer->format,
+				static_cast<uint8_t>(finalColor.r * 255),
+				static_cast<uint8_t>(finalColor.g * 255),
+				static_cast<uint8_t>(finalColor.b * 255));
 		}
 	}
 }
 
-float Mesh::RemapValue(float value, float floor, float ceiling) const
+float Mesh::RemapValue(float value, float min, float max) const
 {
-	if (value > ceiling)
+	if (value > max)
 	{
 		return 1.f;
 	}
-	if (value < floor)
+	if (value < min)
 	{
 		return 0.f;
 	}
-	return (value - floor) / (ceiling - floor);
+	return (value - min) / (max - min);
+}
+
+Vertex_Out Mesh::ConstructInterpolatedData(const Vector3& weights, const std::vector<Vertex_Out>& triangle, float wInterpolated) const
+{
+	Vertex_Out interpolatedData{};
+	interpolatedData.uv = wInterpolated * (weights.x * (triangle[0].uv / triangle[0].position.w) +
+											weights.y * (triangle[1].uv / triangle[1].position.w) +
+											weights.z * (triangle[2].uv / triangle[2].position.w));
+
+	interpolatedData.color = m_pDiffuseMap->Sample(interpolatedData.uv);
+	
+	interpolatedData.normal = ((triangle[0].normal / triangle[0].position.w) * weights.x +
+								(triangle[1].normal / triangle[1].position.w) * weights.y +
+								(triangle[2].normal / triangle[2].position.w) * weights.z) * wInterpolated;
+	interpolatedData.normal.Normalize();
+
+	interpolatedData.tangent = ((triangle[0].tangent / triangle[0].position.w) * weights.x +
+								(triangle[1].tangent / triangle[1].position.w) * weights.y +
+								(triangle[2].tangent / triangle[2].position.w) * weights.z) * wInterpolated;
+	interpolatedData.tangent.Normalize();
+
+	interpolatedData.viewDirection =	((triangle[0].viewDirection / triangle[0].position.w) * weights.x +
+										(triangle[1].viewDirection / triangle[1].position.w) * weights.y +
+										(triangle[2].viewDirection / triangle[2].position.w) * weights.z) * wInterpolated;
+	interpolatedData.viewDirection.Normalize();
+	
+	return interpolatedData;
 }
 
 ColorRGB Mesh::PixelShading(const Vertex_Out& v) const
@@ -516,35 +547,23 @@ ColorRGB Mesh::PixelShading(const Vertex_Out& v) const
 		return (lambertDiffuse + phong) * lambertCosine;
 		break;
 	}
+
 }
 
 void Mesh::FindBoundingBoxCorners(Vector2& topLeft, Vector2& botRight, const std::vector<Vertex_Out>& triangle) const
 {
 	topLeft.x = std::min(std::min(triangle[0].position.x, triangle[1].position.x), triangle[2].position.x);
-	topLeft.x = (topLeft.x < 0 ? 0 : topLeft.x);
+	topLeft.x = Clamp(topLeft.x, 0.f, float(m_WindowWidth - 1));
 	topLeft.y = std::min(std::min(triangle[0].position.y, triangle[1].position.y), triangle[2].position.y);
-	topLeft.y = (topLeft.y < 0 ? 0 : topLeft.y);
+	topLeft.y = Clamp(topLeft.y, 0.f, float(m_WindowHeight - 1));
 
 	botRight.x = std::max(std::max(triangle[0].position.x, triangle[1].position.x), triangle[2].position.x);
-	botRight.x = (botRight.x >= m_WindowWidth ? m_WindowWidth - 1 : botRight.x);
+	botRight.x = Clamp(botRight.x, 0.f, float(m_WindowWidth - 1));
 	botRight.x = std::ceil(botRight.x);
 
 	botRight.y = std::max(std::max(triangle[0].position.y, triangle[1].position.y), triangle[2].position.y);
-	botRight.y = (botRight.y >= m_WindowHeight ? m_WindowHeight - 1 : botRight.y);
+	botRight.y = Clamp(botRight.y, 0.f, float(m_WindowHeight - 1));
 	botRight.y = std::ceil(botRight.y);
-
-	//topLeft.x = std::min(std::min(triangle[0].position.x, triangle[1].position.x), triangle[2].position.x);
-	//topLeft.x = Clamp(topLeft.x, 0.f, float(m_WindowWidth - 1));
-	//topLeft.y = std::min(std::min(triangle[0].position.y, triangle[1].position.y), triangle[2].position.y);
-	//topLeft.y = Clamp(topLeft.y, 0.f, float(m_WindowHeight - 1));
-
-	//botRight.x = std::max(std::max(triangle[0].position.x, triangle[1].position.x), triangle[2].position.x);
-	//botRight.x = Clamp(botRight.x, 0.f, float(m_WindowWidth - 1));
-	//botRight.x = std::ceil(botRight.x);
-
-	//botRight.y = std::max(std::max(triangle[0].position.y, triangle[1].position.y), triangle[2].position.y);
-	//botRight.y = Clamp(botRight.y, 0.f, float(m_WindowHeight - 1));
-	//botRight.y = std::ceil(botRight.y);
 }
 
 float Mesh::CalculateWeights(const Vector2& vertex1, const Vector2& vertex2, const Vector2& pixel, float area) const
@@ -556,7 +575,6 @@ bool Mesh::IsPointInTriangle(const Vector3& weights) const
 {
 	return ((weights.x > 0) && (weights.y > 0) && (weights.z > 0));
 }
-
 
 ID3D11InputLayout* Mesh::GetInputLayoutPtr() const
 {

@@ -24,8 +24,6 @@ void PrintStartingInfo()
 	cout	<< "[Key Bindings] - SHARED\n"
 			<< "[F1] Toggle Rasterizer Mode (HARDWARE/SOFTWARE)\n"
 			<< "[F2] Toggle Vehicle Rotation (ON/OFF)\n"
-			<< "[F5] Cycle Shading Mode (COMBINED/OBSERVED_AREA/DIFFUSE/SPECULAR)\n"
-			<< "[F6] Toggle Normal Map (ON/OFF)\n"
 			<< "[F9] Cycle Cull Modes (BACK/FRONT/NONE)\n"
 			<< "[F10] Toggle Uniform ClearColor [On/Off]\n"
 			<< "[F11] Toggle Print FPS [On/Off]\n\n";
@@ -37,6 +35,8 @@ void PrintStartingInfo()
 
 	SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_RED);
 	cout	<< "[Key Bindings] - SOFTWARE\n"
+			<< "[F5] Cycle Shading Mode (COMBINED/OBSERVED_AREA/DIFFUSE/SPECULAR)\n"
+			<< "[F6] Toggle Normal Map (ON/OFF)\n"
 			<< "[F7] Toggle DepthBuffer Visualisation (ON/OFF)\n"
 			<< "[F8] Toggle BoundingBoxVisualisation (ON/OFF)\n\n";
 }
